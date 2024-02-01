@@ -183,11 +183,5 @@ class TestLibraryManagementSystemAPI(unittest.TestCase):
             self.assertIsNotNone(borrowed_book.ReturnDate)
 
 
-
-
-
-
-    # Similar test methods can be added for other endpoints (e.g., test_add_new_book, test_list_all_books, etc.)
-
 if __name__ == '__main__':
     unittest.main()
