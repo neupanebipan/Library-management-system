@@ -1,175 +1,113 @@
-from flask import Flask, jsonify, request
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token
+from flask import Flask, request, jsonify
 from models import db, User, Book, BookDetails, BorrowedBooks
-from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:1234@localhost/lib_mgmt_system'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = '50ddbf616eb3ee3d'
 
-jwt = JWTManager(app)
-app.config['SQLALCHEMY_ECHO'] = True
+# Set up the database configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:1234@localhost/library-management-system'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize the Flask extension
 db.init_app(app)
 
-# Create tables
+# Create tables (if not already created)
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+        print("Tables created successfully")
+    except Exception as e:
+        print(f"Error creating tables: {e}")
 
 # User APIs
-@app.route('/user/create', methods=['POST'])
+@app.route('/users', methods=['POST'])
 def create_user():
     data = request.get_json()
     new_user = User(**data)
     db.session.add(new_user)
     db.session.commit()
-    return jsonify({'message': 'User created successfully'}), 201
+    return jsonify({"message": "User created successfully", "UserID": new_user.UserID}), 201
 
-@app.route('/user/list', methods=['GET'])
-@jwt_required() 
-def list_users():
+@app.route('/users', methods=['GET'])
+def list_all_users():
     users = User.query.all()
-    users_data = [{'UserID': user.UserID, 'Name': user.Name, 'Email': user.Email, 'MembershipDate': user.MembershipDate} for user in users]
-    return jsonify({'users': users_data})
+    users_data = [{"UserID": user.UserID, "Name": user.Name, "Email": user.Email, "MembershipDate": user.MembershipDate} for user in users]
+    return jsonify(users_data)
 
-@app.route('/user/<int:user_id>', methods=['GET'])
-@jwt_required() 
-def get_user(user_id):
+@app.route('/users/<int:user_id>', methods=['GET'])
+def get_user_by_id(user_id):
     user = User.query.get(user_id)
     if user:
-        user_data = {'UserID': user.UserID, 'Name': user.Name, 'Email': user.Email, 'MembershipDate': user.MembershipDate}
+        user_data = {"UserID": user.UserID, "Name": user.Name, "Email": user.Email, "MembershipDate": user.MembershipDate}
         return jsonify(user_data)
-    return jsonify({'message': 'User not found'}), 404
-
-@app.route('/user/<int:user_id>', methods=['PUT'])
-@jwt_required()
-def update_user(user_id):
-    user = User.query.get(user_id)
-    if user:
-        data = request.get_json()
-        # Update user fields based on the data received
-        for key, value in data.items():
-            setattr(user, key, value)
-        db.session.commit()
-        return jsonify({'message': 'User updated successfully'}), 200
     else:
-        return jsonify({'message': 'User not found'}), 404
-
-@app.route('/user/<int:user_id>', methods=['DELETE'])
-@jwt_required()
-def delete_user(user_id):
-    user = User.query.get(user_id)
-    if user:
-        db.session.delete(user)
-        db.session.commit()
-        return jsonify({'message': 'User deleted successfully'}), 200
-    else:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({"message": "User not found"}), 404
 
 # Book APIs
-@app.route('/book/create', methods=['POST'])
-def add_book():
+@app.route('/books', methods=['POST'])
+def add_new_book():
     data = request.get_json()
     new_book = Book(**data)
     db.session.add(new_book)
     db.session.commit()
-    return jsonify({'message': 'Book added successfully'}), 201
-@app.route('/book/<int:book_id>', methods=['PUT'])
+    return jsonify({"message": "Book added successfully","BookID":new_book.BookID}), 201
 
-def update_book(book_id):
-    book = Book.query.get(book_id)
-    if book:
-        data = request.get_json()
-        for key, value in data.items():
-            setattr(book, key, value)
-        db.session.commit()
-        return jsonify({'message': 'Book updated successfully'}), 200
-    else:
-        return jsonify({'message': 'Book not found'}), 404
-
-@app.route('/book/<int:book_id>', methods=['DELETE'])
-
-def delete_book(book_id):
-    book = Book.query.get(book_id)
-    if book:
-        db.session.delete(book)
-        db.session.commit()
-        return jsonify({'message': 'Book deleted successfully'}), 200
-    else:
-        return jsonify({'message': 'Book not found'}), 404
-
-
-@app.route('/book/list', methods=['GET'])
-def list_books():
+@app.route('/books', methods=['GET'])
+def list_all_books():
     books = Book.query.all()
-    book_list = [{'BookID': book.BookID, 'Title': book.Title, 'ISBN': book.ISBN, 'PublishedDate': str(book.PublishedDate), 'Genre': book.Genre} for book in books]
-    return jsonify({'books': book_list})
+    books_data = [{"BookID": book.BookID, "Title": book.Title, "ISBN": book.ISBN, "PublishedDate": book.PublishedDate, "Genre": book.Genre} for book in books]
+    return jsonify(books_data)
 
-@app.route('/book/<int:book_id>', methods=['GET'])
-def get_book(book_id):
+@app.route('/books/<int:book_id>', methods=['GET'])
+def get_book_by_id(book_id):
     book = Book.query.get(book_id)
     if book:
-        return jsonify({'BookID': book.BookID, 'Title': book.Title, 'ISBN': book.ISBN, 'PublishedDate': str(book.PublishedDate), 'Genre': book.Genre})
+        book_data = {"BookID": book.BookID, "Title": book.Title, "ISBN": book.ISBN, "PublishedDate": book.PublishedDate, "Genre": book.Genre}
+        return jsonify(book_data)
     else:
-        return jsonify({'message': 'Book not found'}), 404
+        return jsonify({"message": "Book not found"}), 404
 
-@app.route('/book/details/<int:book_id>', methods=['PUT'])
+@app.route('/books/<int:book_id>/details', methods=['POST', 'PUT'])
 def assign_update_book_details(book_id):
-    data = request.get_json()
     book = Book.query.get(book_id)
-    if book:
-        book_details = BookDetails.query.filter_by(Book_ID=book_id).first()
-        if not book_details:
-            # Create new BookDetails if it doesn't exist
-            book_details = BookDetails(**data, Book_ID=book_id)
-            db.session.add(book_details)
-        else:
-            # Update existing BookDetails
+    if not book:
+        return jsonify({"message": "Book not found"}), 404
+
+    if request.method == 'POST':
+        data = request.get_json()
+        new_details = BookDetails(**data, BookID=book_id)
+        db.session.add(new_details)
+        db.session.commit()
+        return jsonify({"message": "Book details added successfully"}), 201
+    elif request.method == 'PUT':
+        data = request.get_json()
+        book_details = BookDetails.query.filter_by(BookID=book_id).first()
+        if book_details:
             for key, value in data.items():
                 setattr(book_details, key, value)
-        db.session.commit()
-        return jsonify({'message': 'Book details assigned/updated successfully'})
-    else:
-        return jsonify({'message': 'Book not found'}), 404
+            db.session.commit()
+            return jsonify({"message": "Book details updated successfully"})
+        else:
+            return jsonify({"message": "Book details not found"}), 404
 
 # BorrowedBooks APIs
-@app.route('/borrow_book', methods=['POST'])
+@app.route('/borrow', methods=['POST'])
 def borrow_book():
     data = request.get_json()
-    new_borrowed_book = BorrowedBooks(**data)
-    db.session.add(new_borrowed_book)
+    borrowed_book = BorrowedBooks(**data)
+    db.session.add(borrowed_book)
     db.session.commit()
-    return jsonify({'message': 'Book borrowed successfully'}), 201
+    return jsonify({"message": "Book borrowed successfully"}), 201
 
-@app.route('/return_book/<int:borrowed_id>', methods=['PUT'])
-def return_book(borrowed_id):
-    borrowed_book = BorrowedBooks.query.get(borrowed_id)
+@app.route('/return/<int:user_id>/<int:book_id>', methods=['PUT'])
+def return_book(user_id, book_id):
+    borrowed_book = BorrowedBooks.query.filter_by(UserID=user_id, BookID=book_id).first()
     if borrowed_book:
-        borrowed_book.ReturnDate = db.func.current_date()
+        # Logic for returning the book
+        borrowed_book.returned = True  
         db.session.commit()
-        return jsonify({'message': 'Book returned successfully'})
+        return jsonify({"message": "Book returned successfully"}), 200
     else:
-        return jsonify({'message': 'Borrowed book not found'}), 404
-
-@app.route('/borrowed_books/list', methods=['GET'])
-def list_borrowed_books():
-    borrowed_books = BorrowedBooks.query.all()
-    borrowed_books_list = [{'BorrowedID': bb.BorrowedID, 'UserID': bb.UserID, 'BookID': bb.BookID, 'BorrowDate': str(bb.BorrowDate), 'ReturnDate': str(bb.ReturnDate) if bb.ReturnDate else None} for bb in borrowed_books]
-    return jsonify({'borrowed_books': borrowed_books_list})
-
-@app.route('/login', methods=['POST'])
-def login():
-    email = request.json.get('email', None)
-    password = request.json.get('password', None)
-    
-    # Authenticate user
-    user = User.query.filter_by(Email=email).first()
-    if user and user.check_password(password):
-        access_token = create_access_token(identity=email)
-        return jsonify(access_token=access_token), 200
-    else:
-        return jsonify({"msg": "Bad username or password"}), 401
+        return jsonify({"message": "Borrowed book not found"}), 404
 
 if __name__ == '__main__':
     app.run(debug=True)
-
